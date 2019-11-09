@@ -8,4 +8,5 @@ import XCTest
 
 XCTMain([
     testCase(ValueTests.allTests),
+    testCase(ValueExpressibleByLiteralTests.allTests),
 ])
