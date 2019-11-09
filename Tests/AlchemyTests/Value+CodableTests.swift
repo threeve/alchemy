@@ -32,8 +32,22 @@ final class ValueCodableTests: XCTestCase {
         XCTAssertEqual(decoded, expected)
     }
 
+    func testEncode() throws {
+        let value: Value = [
+            "null": nil,
+            "bool": true,
+            "number": 13,
+            "string": "hi",
+            "array": [nil, true, 13, "hi"],
+        ]
+        let data = try JSONEncoder().encode(value)
+        let newValue = try JSONDecoder().decode(Value.self, from: data)
+        XCTAssertEqual(newValue, value)
+    }
+
     static var allTests = [
         ("testValueObjectKey", testValueObjectKey),
         ("testDecode", testDecode),
+        ("testEncode", testEncode),
     ]
 }
