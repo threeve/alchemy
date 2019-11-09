@@ -7,5 +7,5 @@ import XCTest
 @testable import AlchemyTests
 
 XCTMain([
-    testCase(AlchemyTests.allTests),
+    testCase(ValueTests.allTests),
 ])
