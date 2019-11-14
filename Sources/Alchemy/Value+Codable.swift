@@ -4,7 +4,7 @@
 
 struct ValueObjectKey: CodingKey {
     init?(intValue: Int) {
-        return nil
+        nil
     }
 
     init?(stringValue: String) {
