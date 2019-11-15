@@ -2,18 +2,217 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
+// swiftlint:disable nesting
+
 import XCTest
 @testable import Alchemy
 
 final class ValueDecoderTests: XCTestCase {
-    private struct Foo: Decodable, Equatable {
-        var boolField: Bool
-        var numberField: Double
-        var stringField: String
-        var arrayField: [String]
+    func testKeyedContainerFromNonObjectThrows() throws {
+        struct Foo: Decodable {
+            enum CodingKeys: String, CodingKey {
+                case phony
+            }
+
+            init(from decoder: Decoder) throws {
+                _ = try decoder.container(keyedBy: CodingKeys.self)
+            }
+        }
+        let value: Value = [1, 2, 3]
+        XCTAssertThrowsError(
+            try ValueDecoder().decode(Foo.self, from: value)
+        )
+    }
+
+    func testUnkeyedContainerFromNonArrayThrows() throws {
+        struct Foo: Decodable {
+            init(from decoder: Decoder) throws {
+                _ = try decoder.unkeyedContainer()
+            }
+        }
+        let value: Value = ["key": "value"]
+        XCTAssertThrowsError(
+            try ValueDecoder().decode(Foo.self, from: value)
+        )
+    }
+
+    func testDecodeBoolFromNullThrows() throws {
+        let value: Value = nil
+        XCTAssertThrowsError(
+            try ValueDecoder().decode(Bool.self, from: value)
+        )
+    }
+
+    func testDecodeStringFromWrongTypeThrows() throws {
+        let value: Value = false
+        XCTAssertThrowsError(
+            try ValueDecoder().decode(String.self, from: value)
+        )
+    }
+
+    func testDecodeIntFromWrongTypeThrows() throws {
+        let value: Value = false
+        XCTAssertThrowsError(
+            try ValueDecoder().decode(Int.self, from: value)
+        )
+    }
+
+    func testDecodeDoubleFromWrongTypeThrows() throws {
+        let value: Value = false
+        XCTAssertThrowsError(
+            try ValueDecoder().decode(Double.self, from: value)
+        )
+    }
+
+    func testDecodeOutOfRangeIntegerThrows() throws {
+        let value: Value = 128
+        XCTAssertThrowsError(
+            try ValueDecoder().decode(Int8.self, from: value)
+        )
+    }
+
+    func testDecodePastEndOfUnkeyedContainerThrows() throws {
+        struct Foo: Decodable {
+            init(from decoder: Decoder) throws {
+                var container = try decoder.unkeyedContainer()
+                _ = try container.decode(Bool.self)
+                _ = try container.decode(Bool.self)
+                _ = try container.decode(Bool.self)
+            }
+        }
+        let value: Value = [true, false]
+        XCTAssertThrowsError(
+            try ValueDecoder().decode(Foo.self, from: value)
+        )
+    }
+
+    func testDecodeNilFromUnkeyedContainer() throws {
+        struct Foo: Decodable {
+            let nils: Int
+            init(from decoder: Decoder) throws {
+                var container = try decoder.unkeyedContainer()
+                var nils = 0
+                if try container.decodeNil() { nils += 1 }
+                if try container.decodeNil() { nils += 1 }
+                self.nils = nils
+            }
+        }
+        let value: Value = [nil, false]
+        let foo = try ValueDecoder().decode(Foo.self, from: value)
+        XCTAssertEqual(foo.nils, 1)
+    }
+
+    func testDecodeKeyedContainerNestedInUnkeyedContainer() throws {
+        struct Foo: Decodable {
+            enum CodingKeys: String, CodingKey {
+                case foo
+            }
+
+            init(from decoder: Decoder) throws {
+                var container = try decoder.unkeyedContainer()
+                _ = try container.nestedContainer(keyedBy: CodingKeys.self)
+            }
+        }
+        XCTAssertThrowsError(
+            try ValueDecoder().decode(Foo.self, from: [1, 2, 3])
+        )
+        XCTAssertNoThrow(
+            try ValueDecoder().decode(Foo.self, from: [["foo": "bar"]])
+        )
+    }
+
+    func testDecodeUnkeyedContainerNestedInUnkeyedContainer() throws {
+        struct Foo: Decodable {
+            enum CodingKeys: String, CodingKey {
+                case foo
+            }
+
+            init(from decoder: Decoder) throws {
+                var container = try decoder.unkeyedContainer()
+                _ = try container.nestedUnkeyedContainer()
+            }
+        }
+        XCTAssertThrowsError(
+            try ValueDecoder().decode(Foo.self, from: [1, 2, 3])
+        )
+        XCTAssertNoThrow(
+            try ValueDecoder().decode(Foo.self, from: [["foo", "bar"]])
+        )
+    }
+
+    func testDecodeSuperFromUnkeyedContainer() throws {
+        struct Foo: Decodable {
+            init(from decoder: Decoder) throws {
+                var container = try decoder.unkeyedContainer()
+                _ = try container.superDecoder()
+            }
+        }
+        XCTAssertNoThrow(
+            try ValueDecoder().decode(Foo.self, from: [[:]])
+        )
+    }
+
+    func testDecodeSuperFromKeyedContainer() throws {
+        struct Foo: Decodable {
+            enum CodingKeys: String, CodingKey {
+                case foo
+                case foosuper
+            }
+
+            init(from decoder: Decoder) throws {
+                let container = try decoder.container(keyedBy: CodingKeys.self)
+                _ = try container.superDecoder()
+                _ = try container.superDecoder(forKey: .foosuper)
+            }
+        }
+
+        XCTAssertNoThrow(
+            try ValueDecoder().decode(Foo.self, from: ["super": [:]])
+        )
+        XCTAssertNoThrow(
+            // returns a super container wrapping .null
+            try ValueDecoder().decode(Foo.self, from: ["notsuper": [:]])
+        )
+    }
+
+    func testKeyedContainerAllKeys() throws {
+        struct Foo: Decodable {
+            var keys: [CodingKeys]
+            enum CodingKeys: String, CodingKey {
+                case one
+                case two
+                case three
+            }
+
+            init(from decoder: Decoder) throws {
+                let container = try decoder.container(keyedBy: CodingKeys.self)
+                keys = container.allKeys
+            }
+        }
+
+        let foo1 = try ValueDecoder().decode(Foo.self, from: ["one": nil])
+        XCTAssertEqual(foo1.keys.map { $0.stringValue }, ["one"])
+
+        let foo2 = try ValueDecoder().decode(Foo.self, from: [
+            "one": nil,
+            "two": nil,
+            "three": nil,
+            "four": nil,
+        ])
+        XCTAssertEqual(
+            foo2.keys.map { $0.stringValue }.sorted(),
+            ["one", "three", "two"]
+        )
     }
 
     func testDecodeComplexObject() throws {
+        struct Foo: Decodable, Equatable {
+            var boolField: Bool
+            var numberField: Double
+            var stringField: String
+            var arrayField: [String]
+        }
+
         let original = Foo(
             boolField: true,
             numberField: 13,
@@ -33,13 +232,12 @@ final class ValueDecoderTests: XCTestCase {
         XCTAssertEqual(original, decoded)
     }
 
-    private enum Phony: String, Codable, Equatable {
-        case foo
-        case bar
-        case baz
-    }
-
     func testDecodeEnumArray() throws {
+        enum Phony: String, Codable, Equatable {
+            case foo
+            case bar
+            case baz
+        }
         let value: Value = ["bar", "baz", "foo"]
         let decoded = try ValueDecoder().decode([Phony].self, from: value)
         XCTAssertEqual(decoded, [.bar, .baz, .foo])
