@@ -358,10 +358,5 @@ private struct ValueKey: CodingKey {
         self.intValue = intValue
     }
 
-    public init(stringValue: String, intValue: Int?) {
-        self.stringValue = stringValue
-        self.intValue = intValue
-    }
-
     fileprivate static let `super` = ValueKey(stringValue: "super")
 }
